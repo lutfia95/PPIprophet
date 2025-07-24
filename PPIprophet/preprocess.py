@@ -7,6 +7,7 @@ import pandas as pd
 
 import PPIprophet.io_ as io
 import PPIprophet.stats_ as st
+import gc
 
 
 # standardize and center methods
@@ -118,19 +119,21 @@ def zero_sequence(arr):
 
 
 # @io.timeit
-def gen_pairs_vec(prot, decoy=True, thres=0.4, db=None):
+def gen_pairs_vec(prot, decoy=True, thres=0.4, db='False'):
     import random
-
     np.random.seed(0)
     arr = []
     memo = []
     memo, arr = zip(*prot.items())
+    print(f"Number of proteins: {len(memo)}")
     arr = np.corrcoef(np.array(arr))
+    print(f"Correlation matrix shape: {arr.shape}")
     np.fill_diagonal(arr, 0)
     arrpos = arr.copy()
     arrpos[np.tril_indices(arrpos.shape[0], -1)] = 0
     # positive
     pos = np.column_stack(np.where(arrpos > thres))
+    print(f"Number of possible co-eluting PPIs found: {pos.shape[0]}")
     pos = pd.DataFrame(pos)
     prot2 = {k: ",".join(map(str, v)) for k, v in prot.items()}
     memo = dict(zip(range(len(memo)), memo))
@@ -138,41 +141,38 @@ def gen_pairs_vec(prot, decoy=True, thres=0.4, db=None):
     pos[1] = pos[1].map(memo)
 
     # add db if present
-    if db != "False":
+    if db != 'False' and db is not None:
+        print(f"Adding database pairs from: {db}")
         dd = pd.read_csv(db, sep="\t")
         dd.columns = pos.columns
         dd = dd[dd[0].isin(prot2.keys())]
         dd = dd[dd[1].isin(prot2.keys())]
+        print(f"Number of DB pairs added: {dd.shape[0]}")
         pos = pd.concat([pos, dd])
     pos["ID"] = np.arange(1, pos.shape[0] + 1)
     pos["ID"] = "ppi_" + pos["ID"].astype(str)
     pos = pos[pos[0] != pos[1]]
     pos["MB"] = pos[[0, 1]].agg("#".join, axis=1)
-    ft_pos = pos.copy()
-    ft_pos[0] = ft_pos[0].map(prot2)
-    ft_pos[1] = ft_pos[1].map(prot2)
-    # here dropna
-    pos["FT"] = ft_pos[0] + "#" + ft_pos[1]
+    pos["FT"] = pos[0].map(prot2) + "#" + pos[1].map(prot2)
+
     # decoys
     neg = np.column_stack(np.where(arr <= thres))
+    print(f"Number of negative PPIs found: {neg.shape[0]}")
     # fishing pos.shape[0] decoys. maybe 2 decoys per protein is better?
     neg = neg[np.random.choice(neg.shape[0], pos.shape[0], replace=True), :]
+    print(f"Number of decoy PPIs sampled: {neg.shape[0]}")
     neg = pd.DataFrame(neg)
     neg = neg[neg[0] != neg[1]]
     neg[0] = neg[0].map(memo)
     neg[1] = neg[1].map(memo)
     neg["ID"] = np.arange(pos.shape[0] + 1, neg.shape[0] + pos.shape[0] + 1)
     neg["ID"] = "DECOY_ppi_" + neg["ID"].astype(str)
-    # now add the features
-    ft_neg = neg.copy()
-    ft_neg[0] = ft_neg[0].map(prot2)
-    ft_neg[1] = ft_neg[1].map(prot2)
+    
     neg["MB"] = neg[0] + "_DECOY" + "#" + neg[1] + "_DECOY"
-    neg["FT"] = ft_neg[0] + "#" + ft_neg[1]
+    neg["FT"] =  neg[0].map(prot2) + "#" + neg[1].map(prot2)    
     tots = pd.concat([neg, pos])
     tots.drop([0, 1], axis=1, inplace=True)
     return tots
-
 
 def impute_namean(ls):
     """
@@ -193,10 +193,10 @@ def impute_namean(ls):
 # used split == False in paper
 def runner(infile, db, split=False):
     prot = io.read_txt(infile)
-    print("preprocessing " + infile)
     # write it for differential stretch it to assert same length
     prot = center_arr(prot)
     prot2 = {}
+
     if split:
         for pr in prot:
             pks = split_peaks(prot[pr], pr)
@@ -206,6 +206,7 @@ def runner(infile, db, split=False):
     else:
         prot2 = prot
     pr_df = io.create_df(prot2)
+
     # pr_df = gen_decoy_ppi(pr_df)
     base = io.file2folder(infile, prefix="./tmp/")
     # create tmp folder and subfolder with name
@@ -215,6 +216,7 @@ def runner(infile, db, split=False):
     dest = os.path.join(base, "transf_matrix.txt")
     pr_df.to_csv(dest, sep="\t", encoding="utf-8", index_label="ID")
     ppi = gen_pairs_vec(prot2, decoy=True, db=db)
+
     nm = os.path.join(base, "ppi.txt")
     ppi.to_csv(nm, sep="\t", index=False)
     return True

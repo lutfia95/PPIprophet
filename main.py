@@ -42,7 +42,7 @@ def create_config():
         help='ppi network in STRING format',
         dest='database',
         action='store',
-        default=False,
+        default='False',
     )
     parser.add_argument(
         '-fdr',

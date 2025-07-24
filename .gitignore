@@ -136,9 +136,9 @@ dmypy.json
 
 
 # folder and files to avoid
-Input/*
-tmp/*
-Output/*
+Input/
+tmp/
+Output/
 sample_ids.txt
 sample_ids_dummy.txt
 adj_matrix_combined.txt
@@ -157,3 +157,4 @@ Output/communities.txt
 sample_ids2.txt
 test.ipynb
 PPIprophet/model_ppi_144.h5
+test_ids.txt
