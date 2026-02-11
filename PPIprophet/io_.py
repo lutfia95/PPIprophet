@@ -8,7 +8,7 @@ from datetime import datetime
 from collections import defaultdict
 import random
 import time
-
+import math
 
 def makehash(w=dict):
     """autovivification like hash in perl
@@ -245,33 +245,77 @@ def read_sample_ids(info_path):
     return HoH
 
 
-def read_txt(path, first_col="GN"):
-    """
-    read a tab delimited file giving a path and the first column name
-    return a hash of hashes prot => sample => val
-    """
-    header = []
-    HoA = makehash()
-    temp = {}
-    for line in open(path, "r"):
-        line = line.rstrip("\n")
-        if line.startswith(str(first_col) + "\t"):
-            header = re.split(r"\t+", line)
-        else:
-            things = re.split(r"\t+", line)
-            temp = dict(zip(header, things))
-        if temp:
-            HoA[temp.get("GN")] = []
-            # skip first header (i.e identifier)
-            for key in header[1:]:
-                try:
-                    HoA[temp.get("GN")].append(float(temp[key]))
-                except ValueError as e:
-                    print(e)
-                    raise e
-                    continue
-    return HoA
+# def read_txt(path, first_col="GN"):
+#     """
+#     read a tab delimited file giving a path and the first column name
+#     return a hash of hashes prot => sample => val
+#     """
+#     header = []
+#     HoA = makehash()
+#     temp = {}
+#     print(path)
+#     for line in open(path, "r"):
+#         line = line.rstrip("\n")
+#         if line.startswith(str(first_col) + "\t"):
+#             header = re.split(r"\t+", line)
+#             print(header)
+#         else:
+#             things = re.split(r"\t+", line)
+#             temp = dict(zip(header, things))
+#         if temp:
+#             HoA[temp.get("GN")] = []
+#             # skip first header (i.e identifier)
+#             for key in header[1:]:
+#                 try:
+#                     print(temp[key])
+#                     HoA[temp.get("GN")].append(float(temp[key]))
+#                 except ValueError as e:
+#                     print(e)
+#                     raise e
+#                     continue
+#     return HoA
 
+def read_txt(path, first_col="GN"):
+    HoA = {}
+    header = None
+
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for line_no, line in enumerate(fh, start=1):
+            line = line.rstrip("\n").rstrip("\r")
+            if not line:
+                continue
+
+            if line.startswith(f"{first_col}\t"):
+                header = re.split(r"\t+", line)
+                continue
+
+            if header is None:
+                raise ValueError(f"{path}:{line_no}: missing header starting with '{first_col}\\t'")
+
+            things = re.split(r"\t+", line)
+
+            if len(things) < len(header):
+                things += [""] * (len(header) - len(things))
+            elif len(things) > len(header):
+                things = things[:len(header)]
+
+            temp = dict(zip(header, things))
+            gn = temp.get(first_col)
+            if not gn:
+                continue
+
+            row_vals = []
+            for key in header[1:]:
+                s = temp.get(key, "")
+                if s is None or s == "":
+                    row_vals.append(float("nan"))
+                else:
+                    row_vals.append(float(s))
+
+            # IMPORTANT: single vector per GN
+            HoA[gn] = row_vals
+
+    return HoA
 
 def read_cal(infile):
     """

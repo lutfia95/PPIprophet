@@ -29,8 +29,9 @@ PPIprophet is designed for co-fractionation MS experiments and large-scale PPI p
 
 ## Installation
 1. Clone the repository and navigate to the project folder.
-2. Install dependencies:
-   ```sh
+  ```sh
+   conda create -n ppiprophet python=3.11 -y
+   conda activate ppiprophet
    pip install -r requirements.txt
    ```
 
